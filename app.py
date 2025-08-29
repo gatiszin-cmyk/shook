@@ -90,24 +90,20 @@ def db_save_ticket(user_id: int, section: str, admin_msg_id: int):
     return ticket_id
 
 def db_get_ticket_by_admin_msg_id(admin_msg_id: int):
-
-conn = db_connect()
-
-with conn.cursor() as cur:
-
-cur.execute("SELECT ticket_id, user_id, section FROM tickets WHERE admin_msg_id=%s;", (admin_msg_id,))
-
-row = cur.fetchone()
-
-logger.info("DB lookup admin_msg_id=%s => row=%s", admin_msg_id, row)
-
-if not row:
-
-return None
-
-return {"ticket_id": row, "user_id": row, "section": row}
-
-
+    conn = db_connect()  # keeps the same connection logic
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT ticket_id, user_id, section FROM tickets WHERE admin_msg_id=%s;",
+            (admin_msg_id,),
+        )
+        row = cur.fetchone()  # expected shape: (ticket_id, user_id, section)
+    logger.info("DB lookup admin_msg_id=%s => row=%s", admin_msg_id, row)  # helps verify tuple contents
+    if not row or len(row) != 3:
+        # Defensive: log unexpected shapes and return None so caller can show a friendly message
+        logger.error("Unexpected DB row shape for admin_msg_id=%s: %s", admin_msg_id, row)
+        return None
+    # Correct 0-based indexing
+    return {"ticket_id": row[0], "user_id": row[1], "section": row[2]}
 
 # ---------- States ----------
 MAIN_MENU, AGENCY_MENU, CLOAKING_MENU = range(3)
