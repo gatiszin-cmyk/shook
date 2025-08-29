@@ -78,7 +78,8 @@ def db_get_ticket_by_admin_msg_id(admin_msg_id: int):
         if not row:
             return None
         # row = (ticket_id, user_id, section)
-        return {"ticket_id": row, "user_id": row[16], "section": row[17]}  # [6]
+        return {"ticket_id": row, "user_id": row[5], "section": row[6]}  # correct indexing
+
 
 # States
 MAIN_MENU, AGENCY_MENU, CLOAKING_MENU = range(3)
