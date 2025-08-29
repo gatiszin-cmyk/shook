@@ -152,7 +152,7 @@ ABOUT_TEXT = (
     "Our clients report longer account lifespans and better approval rates than with their previous suppliers with card paid accounts.\n"
     "💰 Low top-up fees: Enjoy 0-3% top-up fees for all major platforms, perfect for scaling your ads. Negotiable for big spenders.\n"
     "💳 Bank/Credit Card/Crypto balance top-up options: Choose the payment method that works best for you.\n"
-    "🎁 If you spend 100k across 3 months, the fees will be fully refunded and you can receive up to 4% cashback on ad spend. "
+    "🎁 If you spend 100k across 3 months, the top up fees will be fully refunded and you can receive up to 4% cashback on ad spend. "
     "Get rewarded for your advertising investment!\n\n"
     "The ad accounts are from HK, but you can run ads targeting any country in the world.\n\n"
     "We don't provide aged or warmed up accounts. All accounts are newly made based on your requests.\n"
