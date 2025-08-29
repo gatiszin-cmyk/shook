@@ -1,5 +1,8 @@
 import os
 from dotenv import load_dotenv
+from urllib.parse import urlparse  # DB: parse DATABASE_URL [uses urlparse]
+import psycopg2  # DB: psycopg2-binary driver
+
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, Message
 from telegram.ext import (
     ApplicationBuilder,
@@ -17,6 +20,70 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN is missing. Put it in runtime.env as BOT_TOKEN=...")
 
+# DB: connect once and init schema
+DATABASE_URL = os.getenv("DATABASE_URL")  # set this in Railway Variables
+if not DATABASE_URL:
+    # In development, this may be empty; on Railway, set it under Variables.
+    # For production, this should be present.
+    pass
+
+_db_conn = None  # global connection handle
+
+def db_connect():
+    global _db_conn
+    if _db_conn is not None:
+        return _db_conn
+    if not DATABASE_URL:
+        raise RuntimeError("DATABASE_URL is missing. Add it in Railway service Variables.")
+    p = urlparse(DATABASE_URL)  # [1]
+    _db_conn = psycopg2.connect(
+        dbname=p.path.lstrip("/"),
+        user=p.username,
+        password=p.password,
+        host=p.hostname,
+        port=p.port,
+        sslmode="require",  # typical for managed Postgres (Railway supports SSL)
+    )
+    _db_conn.autocommit = True
+    return _db_conn
+
+def db_init_schema():
+    conn = db_connect()
+    with conn.cursor() as cur:
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS tickets (
+            ticket_id SERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL,
+            section TEXT NOT NULL,
+            admin_msg_id BIGINT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'open',
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_tickets_admin_msg_id ON tickets(admin_msg_id);")
+
+def db_save_ticket(user_id: int, section: str, admin_msg_id: int) -> int:
+    conn = db_connect()
+    with conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO tickets (user_id, section, admin_msg_id) VALUES (%s, %s, %s) RETURNING ticket_id;",
+            (user_id, section, admin_msg_id),
+        )
+        ticket_id = cur.fetchone()
+        return ticket_id
+
+def db_get_ticket_by_admin_msg_id(admin_msg_id: int):
+    conn = db_connect()
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT ticket_id, user_id, section FROM tickets WHERE admin_msg_id=%s;",
+            (admin_msg_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+        return {"ticket_id": row, "user_id": row[12], "section": row[13]}
+
 # States
 MAIN_MENU, AGENCY_MENU, CLOAKING_MENU = range(3)
 
@@ -26,9 +93,6 @@ REGISTER_URL = "https://vantage.agency-aurora.com/?ref=SOCIALHOOK"
 
 # Admin destination (private chat with you)
 ADMIN_CHAT_ID = 8088620127  # provided
-
-# Simple in-memory map: admin_ticket_message_id -> {"user_id": int, "section": str}
-TICKET_MAP: dict[int, dict] = {}
 
 # --- Keyboards ---------------------------------------------------------------
 
@@ -216,7 +280,6 @@ async def agency_router(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         return MAIN_MENU
 
     if data == "nav:back:agency":
-        # Keep previous section if we were in howto/faq/schedule/support/about, but we only need it for capturing text
         await query.edit_message_text(
             "Agency Ad Account Service — choose an option:",
             reply_markup=agency_menu_kb()
@@ -309,13 +372,10 @@ async def capture_user_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Build and send a ticket message to admin chat, copying user's text
     header = build_ticket_header(section, user, msg)
-    # First, send the header
     header_msg = await context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=header)
-    # Optionally, if there are attachments/media, you could forward the original:
-    # await msg.forward(chat_id=ADMIN_CHAT_ID)
 
-    # Map admin ticket message back to this user
-    TICKET_MAP[header_msg.message_id] = {"user_id": user.id, "section": section}
+    # DB: persist the mapping so admin replies work after restarts
+    db_save_ticket(user.id, section, header_msg.message_id)
 
     # Acknowledge to user (optional)
     await msg.reply_text("Thanks! Our team will get back to you here shortly.")
@@ -337,15 +397,14 @@ async def cmd_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await msg.reply_text("Please reply to a ticket message with /reply <text>.")
         return
 
-    # Identify which ticket this reply refers to
+    # Identify which ticket this reply refers to (DB lookup instead of in-memory)
     replied_id = msg.reply_to_message.message_id
-    ticket = TICKET_MAP.get(replied_id)
+    ticket = db_get_ticket_by_admin_msg_id(replied_id)
     if not ticket:
         await msg.reply_text("Couldn't find the ticket mapping. Please reply to the original ticket header.")
         return
 
     # Extract the reply text after the command
-    # e.g., "/reply hello world" => "hello world"
     args_text = msg.text.removeprefix("/reply").strip() if msg.text else ""
     if not args_text:
         await msg.reply_text("Usage: /reply <message to user>")
@@ -360,6 +419,10 @@ async def cmd_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await msg.reply_text(f"Sent to user {user_id}.")
 
 def main() -> None:
+    # DB: ensure schema is ready on startup
+    if DATABASE_URL:
+        db_init_schema()  # creates tickets table and index if not present [1][11]
+
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     conv = ConversationHandler(
