@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
-from urllib.parse import urlparse  # DB: parse DATABASE_URL [uses urlparse]
-import psycopg2  # DB: psycopg2-binary driver
+from urllib.parse import urlparse  # DB: parse DATABASE_URL
+import psycopg2  # DB driver
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, Message
 from telegram.ext import (
@@ -22,11 +22,6 @@ if not BOT_TOKEN:
 
 # DB: connect once and init schema
 DATABASE_URL = os.getenv("DATABASE_URL")  # set this in Railway Variables
-if not DATABASE_URL:
-    # In development, this may be empty; on Railway, set it under Variables.
-    # For production, this should be present.
-    pass
-
 _db_conn = None  # global connection handle
 
 def db_connect():
@@ -35,14 +30,14 @@ def db_connect():
         return _db_conn
     if not DATABASE_URL:
         raise RuntimeError("DATABASE_URL is missing. Add it in Railway service Variables.")
-    p = urlparse(DATABASE_URL)  # [1]
+    p = urlparse(DATABASE_URL)  # parses postgres://user:pass@host:port/db [15]
     _db_conn = psycopg2.connect(
         dbname=p.path.lstrip("/"),
         user=p.username,
         password=p.password,
         host=p.hostname,
         port=p.port,
-        sslmode="require",  # typical for managed Postgres (Railway supports SSL)
+        sslmode="require",  # typical for managed Postgres
     )
     _db_conn.autocommit = True
     return _db_conn
@@ -69,8 +64,8 @@ def db_save_ticket(user_id: int, section: str, admin_msg_id: int) -> int:
             "INSERT INTO tickets (user_id, section, admin_msg_id) VALUES (%s, %s, %s) RETURNING ticket_id;",
             (user_id, section, admin_msg_id),
         )
-        ticket_id = cur.fetchone()
-        return ticket_id
+        row = cur.fetchone()      # returns a tuple like (ticket_id,)
+        return row if row else None  # [6][14]
 
 def db_get_ticket_by_admin_msg_id(admin_msg_id: int):
     conn = db_connect()
@@ -82,7 +77,8 @@ def db_get_ticket_by_admin_msg_id(admin_msg_id: int):
         row = cur.fetchone()
         if not row:
             return None
-        return {"ticket_id": row, "user_id": row[12], "section": row[13]}
+        # row = (ticket_id, user_id, section)
+        return {"ticket_id": row, "user_id": row[16], "section": row[17]}  # [6]
 
 # States
 MAIN_MENU, AGENCY_MENU, CLOAKING_MENU = range(3)
@@ -357,6 +353,11 @@ async def cloaking_router(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 # --- Capture user free text when in Schedule/Support -------------------------
 
+ACK_TEXT = (
+    "Thanks! Our team will get back to you here shortly. "
+    "In the meantime, you can restart the bot and read more about our service using command /start"
+)
+
 async def capture_user_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Trigger only in private chats with the bot
     if not update.effective_chat or update.effective_chat.type != "private":
@@ -377,8 +378,8 @@ async def capture_user_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # DB: persist the mapping so admin replies work after restarts
     db_save_ticket(user.id, section, header_msg.message_id)
 
-    # Acknowledge to user (optional)
-    await msg.reply_text("Thanks! Our team will get back to you here shortly.")
+    # Acknowledge to user (updated message)
+    await msg.reply_text(ACK_TEXT)  # [4][8]
 
 # --- Admin replies using /reply command in admin chat ------------------------
 
@@ -421,7 +422,7 @@ async def cmd_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main() -> None:
     # DB: ensure schema is ready on startup
     if DATABASE_URL:
-        db_init_schema()  # creates tickets table and index if not present [1][11]
+        db_init_schema()  # creates tickets table and index if not present
 
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
