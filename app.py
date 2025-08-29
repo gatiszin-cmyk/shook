@@ -90,17 +90,24 @@ def db_save_ticket(user_id: int, section: str, admin_msg_id: int):
     return ticket_id
 
 def db_get_ticket_by_admin_msg_id(admin_msg_id: int):
-    conn = db_connect()
-    with conn.cursor() as cur:
-        cur.execute(
-            "SELECT ticket_id, user_id, section FROM tickets WHERE admin_msg_id=%s;",
-            (admin_msg_id,),
-        )
-        row = cur.fetchone()  # -> (ticket_id, user_id, section)
-    logger.info("DB lookup admin_msg_id=%s => row=%s", admin_msg_id, row)
-    if not row:
-        return None
-    return {"ticket_id": row, "user_id": row[11], "section": row[12]}
+
+conn = db_connect()
+
+with conn.cursor() as cur:
+
+cur.execute("SELECT ticket_id, user_id, section FROM tickets WHERE admin_msg_id=%s;", (admin_msg_id,))
+
+row = cur.fetchone()
+
+logger.info("DB lookup admin_msg_id=%s => row=%s", admin_msg_id, row)
+
+if not row:
+
+return None
+
+return {"ticket_id": row, "user_id": row, "section": row}
+
+
 
 # ---------- States ----------
 MAIN_MENU, AGENCY_MENU, CLOAKING_MENU = range(3)
