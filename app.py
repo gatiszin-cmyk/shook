@@ -110,7 +110,7 @@ MAIN_MENU, AGENCY_MENU, CLOAKING_MENU = range(3)
 
 # ---------- Links ----------
 CLOAKING_URL = "https://socialhook.media/sp/cloaking-course/?utm_source=telegram"
-REGISTER_URL = "https://vantage.agency-aurora.com/?ref=SOCIALHOOK"
+REGISTER_URL = "https://socialhook.media/aurora"
 
 # ---------- Keyboards ----------
 def main_menu_kb() -> InlineKeyboardMarkup:
