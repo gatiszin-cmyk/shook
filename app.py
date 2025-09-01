@@ -137,7 +137,7 @@ def cloaking_menu_kb() -> InlineKeyboardMarkup:
 
 def back_with_register_kb(back_target: str = "agency") -> InlineKeyboardMarkup:
     rows = [
-        [InlineKeyboardButton("🔗 Register Now", url=REGISTER_URL)],
+        [InlineKeyboardButton("🔗 Register & Start Free Trial Now!", url=REGISTER_URL)],
     ]
     if back_target == "agency":
         rows.append([InlineKeyboardButton("⬅️ Back", callback_data="nav:back:agency")])
