@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+from datetime import datetime, timedelta, time, timezone
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
@@ -16,6 +17,7 @@ from telegram.ext import (
     CallbackQueryHandler,
     ConversationHandler,
     MessageHandler,
+    JobQueue,
     filters,
 )
 
@@ -25,8 +27,6 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
 logger = logging.getLogger("bot")
-
-# Reduce httpx noise
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
 # ---------- Env ----------
@@ -34,9 +34,11 @@ load_dotenv(dotenv_path="runtime.env")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN is missing. Put it in runtime.env as BOT_TOKEN=...")
-
-DATABASE_URL = os.getenv("DATABASE_URL")  # Provided via Railway Variables
+DATABASE_URL = os.getenv("DATABASE_URL")
 ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", "8088620127"))
+
+# Optional: local timezone for scheduling the daily job (report covers previous UTC day)
+LOCAL_TZ = os.getenv("LOCAL_TZ", "Europe/Riga")
 
 # ---------- DB ----------
 _db_conn = None
@@ -63,6 +65,7 @@ def db_connect():
 def db_init_schema():
     conn = db_connect()
     with conn.cursor() as cur:
+        # Tickets for Support/Schedule messages
         cur.execute("""
         CREATE TABLE IF NOT EXISTS tickets (
             ticket_id SERIAL PRIMARY KEY,
@@ -74,7 +77,19 @@ def db_init_schema():
         );
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_tickets_admin_msg_id ON tickets(admin_msg_id);")
-    logger.info("DB schema ensured (tickets table & index).")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_tickets_created_at ON tickets(created_at);")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_tickets_section ON tickets(section);")
+        # Starts for /start analytics
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS starts (
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL,
+            started_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_starts_started_at ON starts(started_at);")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_starts_user_id ON starts(user_id);")
+    logger.info("DB schema ensured (tickets, starts & indexes).")
 
 def db_save_ticket(user_id: int, section: str, admin_msg_id: int):
     conn = db_connect()
@@ -89,21 +104,25 @@ def db_save_ticket(user_id: int, section: str, admin_msg_id: int):
                 ticket_id, user_id, section, admin_msg_id)
     return ticket_id
 
+def db_save_start(user_id: int):
+    conn = db_connect()
+    with conn.cursor() as cur:
+        cur.execute("INSERT INTO starts (user_id) VALUES (%s);", (user_id,))
+    logger.info("DB logged /start from user_id=%s", user_id)
+
 def db_get_ticket_by_admin_msg_id(admin_msg_id: int):
-    conn = db_connect()  # keeps the same connection logic
+    conn = db_connect()
     with conn.cursor() as cur:
         cur.execute(
             "SELECT ticket_id, user_id, section FROM tickets WHERE admin_msg_id=%s;",
             (admin_msg_id,),
         )
-        row = cur.fetchone()  # expected shape: (ticket_id, user_id, section)
-    logger.info("DB lookup admin_msg_id=%s => row=%s", admin_msg_id, row)  # helps verify tuple contents
+        row = cur.fetchone()  # -> (ticket_id, user_id, section)
+    logger.info("DB lookup admin_msg_id=%s => row=%s", admin_msg_id, row)
     if not row or len(row) != 3:
-        # Defensive: log unexpected shapes and return None so caller can show a friendly message
         logger.error("Unexpected DB row shape for admin_msg_id=%s: %s", admin_msg_id, row)
         return None
-    # Correct 0-based indexing
-    return {"ticket_id": row[0], "user_id": row[1], "section": row[2]}
+    return {"ticket_id": row, "user_id": row[4], "section": row[5]}
 
 # ---------- States ----------
 MAIN_MENU, AGENCY_MENU, CLOAKING_MENU = range(3)
@@ -242,6 +261,13 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
 
 # ---------- Handlers ----------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    # Log /start for analytics
+    try:
+        if update.effective_user:
+            db_save_start(update.effective_user.id)
+    except Exception as e:
+        logger.error("Failed to log /start: %s", e)
+
     context.user_data.clear()
     context.user_data["section"] = None
     await update.message.reply_text("Welcome! Choose an option:", reply_markup=main_menu_kb())
@@ -380,12 +406,78 @@ async def cmd_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(chat_id=user_id, text=args_text)
     await msg.reply_text(f"Sent to user {user_id}.")
 
+# ---------- Scheduled daily stats ----------
+def _yesterday_utc_range():
+    # Yesterday in UTC, inclusive start, exclusive end
+    today_utc = datetime.now(timezone.utc).date()
+    y_start = datetime.combine(today_utc - timedelta(days=1), time.min, tzinfo=timezone.utc)
+    y_end = datetime.combine(today_utc, time.min, tzinfo=timezone.utc)
+    return y_start, y_end
+
+def db_fetch_daily_stats():
+    y_start, y_end = _yesterday_utc_range()
+    conn = db_connect()
+    with conn.cursor() as cur:
+        # Unique starters yesterday
+        cur.execute(
+            "SELECT COUNT(DISTINCT user_id) FROM starts WHERE started_at >= %s AND started_at < %s;",
+            (y_start, y_end),
+        )
+        starters = cur.fetchone() or 0
+
+        # Total support messages (tickets) yesterday
+        cur.execute(
+            "SELECT COUNT(*) FROM tickets WHERE created_at >= %s AND created_at < %s;",
+            (y_start, y_end),
+        )
+        total_tickets = cur.fetchone() or 0
+
+        # Split by section
+        cur.execute(
+            "SELECT section, COUNT(*) FROM tickets WHERE created_at >= %s AND created_at < %s GROUP BY section;",
+            (y_start, y_end),
+        )
+        by_section = dict(cur.fetchall() or [])
+
+    return {
+        "start": y_start,
+        "end": y_end,
+        "starters": starters,
+        "total_tickets": total_tickets,
+        "tickets_support": by_section.get("Talk To Support", 0),
+        "tickets_schedule": by_section.get("Schedule a Call", 0),
+    }
+
+async def send_daily_stats(context: ContextTypes.DEFAULT_TYPE):
+    try:
+        stats = db_fetch_daily_stats()
+        window = f"{stats['start'].strftime('%Y-%m-%d')} UTC"
+        text = (
+            f"Daily Stats for {window}\n"
+            f"• Unique /start users: {stats['starters']}\n"
+            f"• Support messages (total): {stats['total_tickets']}\n"
+            f"   - Talk To Support: {stats['tickets_support']}\n"
+            f"   - Schedule a Call: {stats['tickets_schedule']}\n"
+        )
+        await context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=text)
+        logger.info("Daily stats sent to admin.")
+    except Exception as e:
+        logger.exception("Failed to compute/send daily stats: %s", e)
+
+def schedule_daily_job(app: Application):
+    # Schedule at 08:00 local time (Europe/Riga by default). PTB JobQueue expects a time object.
+    # The report always covers the previous UTC day to avoid TZ edge cases. [1][2]
+    run_at = time(hour=8, minute=0, tzinfo=timezone.utc)  # run at 08:00 UTC; adjust if preferred
+    # If wanting specific local wall time, convert to UTC yourself and set here.
+    job_queue: JobQueue = app.job_queue
+    job_queue.run_daily(send_daily_stats, run_at)
+    logger.info("Scheduled daily stats job at %s (UTC).", run_at)
+
+# ---------- Main ----------
 def main() -> None:
-    # Ensure DB schema
     db_init_schema()
 
     app: Application = ApplicationBuilder().token(BOT_TOKEN).build()
-
     logger.info("Bot starting. ADMIN_CHAT_ID=%s", ADMIN_CHAT_ID)
 
     conv = ConversationHandler(
@@ -404,8 +496,10 @@ def main() -> None:
     app.add_handler(CommandHandler("reply", cmd_reply))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), capture_user_text))
 
-    # Central error handler
     app.add_error_handler(error_handler)
+
+    # Schedule the daily recap
+    schedule_daily_job(app)
 
     app.run_polling()
 
