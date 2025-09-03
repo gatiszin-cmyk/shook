@@ -465,11 +465,12 @@ async def send_daily_stats(context: ContextTypes.DEFAULT_TYPE):
         logger.exception("Failed to compute/send daily stats: %s", e)
 
 def schedule_daily_job(app: Application):
-    # Schedule at 08:00 local time (Europe/Riga by default). PTB JobQueue expects a time object.
-    # The report always covers the previous UTC day to avoid TZ edge cases. [1][2]
-    run_at = time(hour=8, minute=0, tzinfo=timezone.utc)  # run at 08:00 UTC; adjust if preferred
-    # If wanting specific local wall time, convert to UTC yourself and set here.
-    job_queue: JobQueue = app.job_queue
+    job_queue: JobQueue | None = app.job_queue
+    if job_queue is None:
+        logger.warning("JobQueue is not available. Install PTB with extras: pip install \"python-telegram-bot[job-queue]\"")
+        return
+    # Run at 08:00 UTC by default
+    run_at = time(hour=8, minute=0, tzinfo=timezone.utc)
     job_queue.run_daily(send_daily_stats, run_at)
     logger.info("Scheduled daily stats job at %s (UTC).", run_at)
 
