@@ -98,11 +98,10 @@ def db_save_ticket(user_id: int, section: str, admin_msg_id: int):
             "INSERT INTO tickets (user_id, section, admin_msg_id) VALUES (%s, %s, %s) RETURNING ticket_id;",
             (user_id, section, admin_msg_id),
         )
-        row = cur.fetchone()  # -> (ticket_id,)
-        ticket_id = row if row else None
-    logger.info("DB saved ticket ticket_id=%s user_id=%s section=%s admin_msg_id=%s",
-                ticket_id, user_id, section, admin_msg_id)
-    return ticket_id
+row = cur.fetchone()      # -> (ticket_id,)
+ticket_id = row if row else None
+logger.info("DB saved ticket ticket_id=%s user_id=%s section=%s admin_msg_id=%s",
+            ticket_id, user_id, section, admin_msg_id)
 
 def db_save_start(user_id: int):
     conn = db_connect()
@@ -122,7 +121,7 @@ def db_get_ticket_by_admin_msg_id(admin_msg_id: int):
     if not row or len(row) != 3:
         logger.error("Unexpected DB row shape for admin_msg_id=%s: %s", admin_msg_id, row)
         return None
-    return {"ticket_id": row, "user_id": row[4], "section": row[5]}
+    return {"ticket_id": row, "user_id": row[3], "section": row[4]}
 
 # ---------- States ----------
 MAIN_MENU, AGENCY_MENU, CLOAKING_MENU = range(3)
