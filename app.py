@@ -118,12 +118,19 @@ def db_get_ticket_by_admin_msg_id(admin_msg_id: int):
             "SELECT ticket_id, user_id, section FROM tickets WHERE admin_msg_id=%s;",
             (admin_msg_id,),
         )
-        row = cur.fetchone()  # expected: (ticket_id, user_id, section)
+        row = cur.fetchone()          # → (ticket_id, user_id, section)
+
     logger.info("DB lookup admin_msg_id=%s => row=%s", admin_msg_id, row)
-    if not row or len(row) != 3:
-        logger.error("Unexpected DB row shape for admin_msg_id=%s: %s", admin_msg_id, row)
+
+    if not row or len(row) != 3:      # safety-check
+        logger.error("Unexpected DB row shape for %s: %s", admin_msg_id, row)
         return None
-    return {"ticket_id": row, "user_id": row[18], "section": row[19]}
+
+    return {
+        "ticket_id": row,          # correct indices
+        "user_id":   row[20],
+        "section":   row[21],
+    }
 
 
 # ---------- States ----------
