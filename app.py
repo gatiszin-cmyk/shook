@@ -199,8 +199,8 @@ def agency_menu_kb() -> InlineKeyboardMarkup:
         [InlineKeyboardButton("📥 How To Receive Ad Accounts", callback_data="agency:howto")],
         [InlineKeyboardButton("❓ FAQ", callback_data="agency:faq")],
         [InlineKeyboardButton("🛡️ About Aurora Service", callback_data="agency:aurora")],
-        [InlineKeyboardButton("📅📞 Schedule a Call", callback_data="agency:schedule")],
-        [InlineKeyboardButton("💬🤝 Talk To Support", callback_data="agency:support")],
+        [InlineKeyboardButton("📞 Schedule a Call", callback_data="agency:schedule")],
+        [InlineKeyboardButton("🤝 Talk To Support", callback_data="agency:support")],
         [InlineKeyboardButton("🔗 Register & Start Free Trial Now!", url=REGISTER_URL)],
         [InlineKeyboardButton("⬅️ Back", callback_data="nav:back:main")],
     ])
