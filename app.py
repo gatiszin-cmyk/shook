@@ -255,13 +255,13 @@ ABOUT_TEXT = (
 )
 
 HOWTO_TEXT = (
-    "Step-by-step instructions to start our service and start receiving agency ad accounts:\n"
-    "1. Click on the link below and register to the self-service platform\n"
-    "2. Pick a plan for the platform you wish to advertise in. Once clicked, it should redirect to checkout with the free trial activated. "
+    "Step-by-step instructions to start our service and start receiving agency ad accounts:\n\n"
+    "1️⃣ Click on the link below and register to the self-service platform\n"
+    "2️⃣ Pick a plan for the platform you wish to advertise in. Once clicked, it should redirect to checkout with the free trial activated. "
     "You won't be charged anything yet, only after the trial ends.\n"
-    "3. Top up your account balance in \"Wallet\" section with crypto, bank transfer or card payments\n"
-    "4. Request new ad accounts through \"Ad Accounts section\" with already loaded balance\n"
-    "5. Done! Now just wait for delivery. Under \"Support\" section you should see contacts of your account manager to communicate about account delivery or other issues.\n"
+    "3️⃣ Top up your account balance in \"Wallet\" section with crypto, bank transfer or card payments\n"
+    "4️⃣ Request new ad accounts through \"Ad Accounts section\" with already loaded balance\n"
+    "✅ Done! Now just wait for delivery. Under \"Support\" section you should see contacts of your account manager to communicate about account delivery or other issues.\n"
 )
 
 FAQ_TEXT = (
