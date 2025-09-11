@@ -182,6 +182,9 @@ MAIN_MENU, AGENCY_MENU, CLOAKING_MENU = range(3)
 CLOAKING_URL = "https://socialhook.media/sp/cloaking-course/?utm_source=telegram"
 REGISTER_URL = "https://socialhook.media/aurora"
 
+# Convert Google Drive sharing URL to direct download URL
+AURORA_SERVICE_IMAGE_URL = "https://drive.google.com/uc?export=download&id=1Imfng-TzJq0CKvxFSk7w6sg6lNzw-Ecm"
+
 # ---------- Keyboards ----------
 def main_menu_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
@@ -194,8 +197,10 @@ def agency_menu_kb() -> InlineKeyboardMarkup:
         [InlineKeyboardButton("📝 About Ad Accounts", callback_data="agency:about")],
         [InlineKeyboardButton("📥 How To Receive Ad Accounts", callback_data="agency:howto")],
         [InlineKeyboardButton("❓ FAQ", callback_data="agency:faq")],
+        [InlineKeyboardButton("🛡️ About Aurora Service", callback_data="agency:aurora")],
         [InlineKeyboardButton("📅📞 Schedule a Call", callback_data="agency:schedule")],
         [InlineKeyboardButton("💬🤝 Talk To Support", callback_data="agency:support")],
+        [InlineKeyboardButton("🔗 Register & Start Free Trial Now!", url=REGISTER_URL)],
         [InlineKeyboardButton("⬅️ Back", callback_data="nav:back:main")],
     ])
 
@@ -280,6 +285,16 @@ FAQ_TEXT = (
     "Yes, but use cloaking & account warmups to avoid bans.\n"
     "❓Can I get a free trial or discount?\n"
     "Yes, with our link you can receive 2 week free trial to test our service free of charge.\n"
+)
+
+AURORA_SERVICE_TEXT = (
+    "Agency Aurora has been serving ad accounts since 2021, with approximately 350 Million advertising spend as of now, 3000+ unique advertisers and partnership with biggest advertising platforms including Meta, Google, TikTok, Snapchat and more.\n\n"
+    "Aurora aims to serve scaling spenders by providing:\n"
+    "🛡️ Whitelisted ad accounts. Supercharge your marketing with enterprise accounts: no ad restrictions, cashback on spend, unlimited scalability, and cheaper results.\n"
+    "📱 Leading technology. Our all-in-one proprietary technology lets advertisers manage, optimize, organize, and strategize on a single, mobile-friendly platform accessible anywhere.\n"
+    "🛠️ Dedicated support. Strategize with our dedicated account management team. Get daily support from someone who understands and helps achieve your goals.\n\n"
+    "Don't just take our word for it. You can check out our TrustPilot page for reviews on our service from real business owners and advertisers - https://www.trustpilot.com/review/agency-aurora.com\n\n"
+    "Additionally, Agency Aurora participates in many major world conferences, so if you see us, feel free to check out our booth and have a chat with our expert team right there!"
 )
 
 SCHEDULE_TEXT = (
@@ -396,6 +411,27 @@ async def agency_router(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     if data == "agency:faq":
         context.user_data["section"] = None
         await query.edit_message_text(FAQ_TEXT, reply_markup=back_with_register_kb("agency"))
+        return AGENCY_MENU
+
+    if data == "agency:aurora":
+        context.user_data["section"] = None
+        try:
+            # Send photo with caption and buttons
+            await context.bot.send_photo(
+                chat_id=query.message.chat_id,
+                photo=AURORA_SERVICE_IMAGE_URL,
+                caption=AURORA_SERVICE_TEXT,
+                reply_markup=back_with_register_kb("agency")
+            )
+            # Delete the original menu message to avoid clutter
+            await query.message.delete()
+        except Exception as e:
+            logger.error(f"Failed to send Aurora service photo: {e}")
+            # Fallback to text message if image fails
+            await query.edit_message_text(
+                AURORA_SERVICE_TEXT,
+                reply_markup=back_with_register_kb("agency")
+            )
         return AGENCY_MENU
 
     if data == "agency:schedule":
