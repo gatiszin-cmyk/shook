@@ -424,16 +424,16 @@ async def agency_router(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
                     caption=AURORA_SERVICE_TEXT,
                     reply_markup=back_with_register_kb("agency")
                 )
-        # Delete the original menu message to avoid clutter
-        await query.message.delete()
-    except Exception as e:
-        logger.error(f"Failed to send Aurora service photo: {e}")
-        # Fallback to text message if image fails
-        await query.edit_message_text(
-            AURORA_SERVICE_TEXT,
-            reply_markup=back_with_register_kb("agency")
-        )
-    return AGENCY_MENU
+            # Delete the original menu message to avoid clutter
+            await query.message.delete()
+        except Exception as e:
+            logger.error(f"Failed to send Aurora service photo: {e}")
+            # Fallback to text message if image fails
+            await query.edit_message_text(
+                AURORA_SERVICE_TEXT,
+                reply_markup=back_with_register_kb("agency")
+            )
+        return AGENCY_MENU
 
     if data == "agency:schedule":
         context.user_data["section"] = "Schedule a Call"
