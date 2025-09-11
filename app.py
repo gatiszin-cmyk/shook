@@ -289,13 +289,13 @@ FAQ_TEXT = (
 )
 
 AURORA_SERVICE_TEXT = (
-    "Agency Aurora has been serving ad accounts since 2021, with approximately 350 Million advertising spend as of now, 3000+ unique advertisers and partnership with biggest advertising platforms including Meta, Google, TikTok, Snapchat and more.\n\n"
+    "Agency Aurora has been serving ad accounts since 2021, with 350M+ yearly ad spend, 3000+ advertisers, and partnerships with Meta, Google, TikTok, Snapchat and more. \n\n"
     "Aurora aims to serve scaling spenders by providing:\n"
-    "🛡️ Whitelisted ad accounts. Supercharge your marketing with enterprise accounts: no ad restrictions, cashback on spend, unlimited scalability, and cheaper results.\n"
-    "📱 Leading technology. Our all-in-one proprietary technology lets advertisers manage, optimize, organize, and strategize on a single, mobile-friendly platform accessible anywhere.\n"
-    "🛠️ Dedicated support. Strategize with our dedicated account management team. Get daily support from someone who understands and helps achieve your goals.\n\n"
-    "Don't just take our word for it. You can check out our TrustPilot page for reviews on our service from real business owners and advertisers - https://www.trustpilot.com/review/agency-aurora.com\n\n"
-    "Additionally, Agency Aurora participates in many major world conferences, so if you see us, feel free to check out our booth and have a chat with our expert team right there!"
+    "🛡️ Whitelisted enterprise accounts: no restrictions, cashback, unlimited scalability\n"
+    "📱 All-in-one proprietary technology self serve platform: manage on a single, mobile-friendly platform accessible anywhere.\n"
+    "🛠️ Dedicated account management: Strategize with our dedicated account management team.\n\n"
+    "Reviews from our customers: https://www.trustpilot.com/review/agency-aurora.com\n"
+    "Additionally, Agency Aurora participates in many major worldwide conferences, so if you see us, feel free to check out our booth and have a chat with our expert team right there!"
 )
 
 SCHEDULE_TEXT = (
