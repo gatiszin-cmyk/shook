@@ -413,18 +413,17 @@ async def agency_router(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         context.user_data["section"] = None
         await query.edit_message_text(FAQ_TEXT, reply_markup=back_with_register_kb("agency"))
         return AGENCY_MENU
-
     if data == "agency:aurora":
-    context.user_data["section"] = None
-    try:
-        # Send photo from local file with caption and buttons
-        with open('aurora-service.jpg', 'rb') as photo:
-            await context.bot.send_photo(
-                chat_id=query.message.chat_id,
-                photo=photo,
-                caption=AURORA_SERVICE_TEXT,
-                reply_markup=back_with_register_kb("agency")
-            )
+        context.user_data["section"] = None
+        try:
+            # Send photo from local file with caption and buttons
+            with open('aurora-service.jpg', 'rb') as photo:
+                await context.bot.send_photo(
+                    chat_id=query.message.chat_id,
+                    photo=photo,
+                    caption=AURORA_SERVICE_TEXT,
+                    reply_markup=back_with_register_kb("agency")
+                )
         # Delete the original menu message to avoid clutter
         await query.message.delete()
     except Exception as e:
