@@ -651,15 +651,16 @@ def main() -> None:
         allow_reentry=True,
     )
 
-    app.add_handler(conv)
+    # Register handlers in correct order
+    app.add_handler(conv)  # ✅ ConversationHandler FIRST
     app.add_handler(CommandHandler("id", cmd_id))
     app.add_handler(CommandHandler("reply", cmd_reply))
     app.add_handler(CommandHandler("endsupport", cmd_end_support))
-    
-    # ADD THIS LINE HERE (after creating app)
     app.add_handler(CommandHandler("upload_aurora", upload_aurora_image))
     
+    # ✅ MessageHandler LAST - only catches messages not handled by others
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), capture_user_text))
+    
     app.add_error_handler(error_handler)
     schedule_daily_job(app)
     app.run_polling()
