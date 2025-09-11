@@ -415,25 +415,26 @@ async def agency_router(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         return AGENCY_MENU
 
     if data == "agency:aurora":
-        context.user_data["section"] = None
-        try:
-            # Send photo with caption and buttons
+    context.user_data["section"] = None
+    try:
+        # Send photo from local file with caption and buttons
+        with open('aurora-service.jpg', 'rb') as photo:
             await context.bot.send_photo(
                 chat_id=query.message.chat_id,
-                photo=AURORA_SERVICE_IMAGE_URL,
+                photo=photo,
                 caption=AURORA_SERVICE_TEXT,
                 reply_markup=back_with_register_kb("agency")
             )
-            # Delete the original menu message to avoid clutter
-            await query.message.delete()
-        except Exception as e:
-            logger.error(f"Failed to send Aurora service photo: {e}")
-            # Fallback to text message if image fails
-            await query.edit_message_text(
-                AURORA_SERVICE_TEXT,
-                reply_markup=back_with_register_kb("agency")
-            )
-        return AGENCY_MENU
+        # Delete the original menu message to avoid clutter
+        await query.message.delete()
+    except Exception as e:
+        logger.error(f"Failed to send Aurora service photo: {e}")
+        # Fallback to text message if image fails
+        await query.edit_message_text(
+            AURORA_SERVICE_TEXT,
+            reply_markup=back_with_register_kb("agency")
+        )
+    return AGENCY_MENU
 
     if data == "agency:schedule":
         context.user_data["section"] = "Schedule a Call"
