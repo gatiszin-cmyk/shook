@@ -45,15 +45,14 @@ LOCAL_TZ = os.getenv("LOCAL_TZ", "Europe/Riga")
 _db_conn = None
 
 
-# Add this temporary function to your bot code
+# Add this function BEFORE the main() function
 async def upload_aurora_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """One-time function to upload Aurora image and get file_id"""
     if update.effective_chat.id != ADMIN_CHAT_ID:  # Only admin can run this
         return
     
-    # Download your Google Drive image first and save it locally as 'aurora-service.jpg'
-    # Or use any direct URL to the image
     try:
+        # You need to download your Google Drive image first and save it locally as 'aurora-service.jpg'
         with open('aurora-service.jpg', 'rb') as photo:
             message = await context.bot.send_photo(
                 chat_id=ADMIN_CHAT_ID,
@@ -78,7 +77,6 @@ async def upload_aurora_image(update: Update, context: ContextTypes.DEFAULT_TYPE
             chat_id=ADMIN_CHAT_ID,
             text=f"❌ Upload failed: {e}"
         )
-
 # Add this handler temporarily
 app.add_handler(CommandHandler("upload_aurora", upload_aurora_image))
 
@@ -659,14 +657,11 @@ def main() -> None:
     app.add_handler(CommandHandler("id", cmd_id))
     app.add_handler(CommandHandler("reply", cmd_reply))
     app.add_handler(CommandHandler("endsupport", cmd_end_support))
+    
+    # ADD THIS LINE HERE (after creating app)
+    app.add_handler(CommandHandler("upload_aurora", upload_aurora_image))
+    
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), capture_user_text))
-
     app.add_error_handler(error_handler)
-
-    # Schedule the daily recap
     schedule_daily_job(app)
-
     app.run_polling()
-
-if __name__ == "__main__":
-    main()
