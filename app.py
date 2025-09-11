@@ -77,8 +77,6 @@ async def upload_aurora_image(update: Update, context: ContextTypes.DEFAULT_TYPE
             chat_id=ADMIN_CHAT_ID,
             text=f"❌ Upload failed: {e}"
         )
-# Add this handler temporarily
-app.add_handler(CommandHandler("upload_aurora", upload_aurora_image))
 
 
 def db_connect():
