@@ -34,6 +34,7 @@ load_dotenv(dotenv_path="runtime.env")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN is missing. Put it in runtime.env as BOT_TOKEN=...")
+
 DATABASE_URL = os.getenv("DATABASE_URL")
 ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", "8088620127"))
 
@@ -79,6 +80,7 @@ def db_init_schema():
         cur.execute("CREATE INDEX IF NOT EXISTS idx_tickets_admin_msg_id ON tickets(admin_msg_id);")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_tickets_created_at ON tickets(created_at);")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_tickets_section ON tickets(section);")
+        
         # Starts for /start analytics
         cur.execute("""
         CREATE TABLE IF NOT EXISTS starts (
@@ -89,7 +91,19 @@ def db_init_schema():
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_starts_started_at ON starts(started_at);")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_starts_user_id ON starts(user_id);")
-    logger.info("DB schema ensured (tickets, starts & indexes).")
+        
+        # Support sessions for persistent conversation tracking
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS support_sessions (
+            user_id BIGINT PRIMARY KEY,
+            section TEXT NOT NULL,
+            started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            last_activity TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_support_sessions_last_activity ON support_sessions(last_activity);")
+        
+    logger.info("DB schema ensured (tickets, starts, support_sessions & indexes).")
 
 def db_save_ticket(user_id: int, section: str, admin_msg_id: int):
     conn = db_connect()
@@ -99,17 +113,46 @@ def db_save_ticket(user_id: int, section: str, admin_msg_id: int):
             (user_id, section, admin_msg_id),
         )
         row = cur.fetchone()  # -> (ticket_id,)
-        ticket_id = row if row else None
+        ticket_id = row[0] if row else None
     logger.info("DB saved ticket ticket_id=%s user_id=%s section=%s admin_msg_id=%s",
                 ticket_id, user_id, section, admin_msg_id)
     return ticket_id
-
 
 def db_save_start(user_id: int):
     conn = db_connect()
     with conn.cursor() as cur:
         cur.execute("INSERT INTO starts (user_id) VALUES (%s);", (user_id,))
     logger.info("DB logged /start from user_id=%s", user_id)
+
+def db_start_support_session(user_id: int, section: str):
+    conn = db_connect()
+    with conn.cursor() as cur:
+        cur.execute(
+            """INSERT INTO support_sessions (user_id, section) 
+               VALUES (%s, %s) 
+               ON CONFLICT (user_id) 
+               DO UPDATE SET section = %s, last_activity = NOW();""",
+            (user_id, section, section)
+        )
+    logger.info("Started support session for user_id=%s section=%s", user_id, section)
+
+def db_get_support_session(user_id: int):
+    conn = db_connect()
+    with conn.cursor() as cur:
+        # Get active sessions (within last 24 hours)
+        cur.execute(
+            """SELECT section FROM support_sessions 
+               WHERE user_id = %s AND last_activity > NOW() - INTERVAL '24 hours';""",
+            (user_id,)
+        )
+        row = cur.fetchone()
+    return row[0] if row else None
+
+def db_end_support_session(user_id: int):
+    conn = db_connect()
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM support_sessions WHERE user_id = %s;", (user_id,))
+    logger.info("Ended support session for user_id=%s", user_id)
 
 def db_get_ticket_by_admin_msg_id(admin_msg_id: int):
     conn = db_connect()
@@ -131,8 +174,6 @@ def db_get_ticket_by_admin_msg_id(admin_msg_id: int):
         "user_id": row[1],      # Second column: user_id  
         "section": row[2]       # Third column: section
     }
-
-
 
 # ---------- States ----------
 MAIN_MENU, AGENCY_MENU, CLOAKING_MENU = range(3)
@@ -185,7 +226,7 @@ def back_only_kb(back_target: str) -> InlineKeyboardMarkup:
 CLOAKING_TEXT = (
     "🔥 Socialhook Cloaking Mastery Course is LIVE!\n"
     "Learn how to run unrestricted ads on Meta & Google!\n"
-    "What you’ll get:\n"
+    "What you'll get:\n"
     "✅ Step-by-step cloaking strategies\n"
     "🛠️ Secret tools & proven methods\n"
     "🌍 Trusted by media buyers worldwide\n"
@@ -275,6 +316,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     try:
         if update.effective_user:
             db_save_start(update.effective_user.id)
+            # Clear any active support sessions when user restarts
+            db_end_support_session(update.effective_user.id)
     except Exception as e:
         logger.error("Failed to log /start: %s", e)
 
@@ -290,6 +333,16 @@ async def cmd_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"Your chat_id is: {chat.id}")
     else:
         await update.message.reply_text("Please DM me /id to receive your private chat_id.")
+
+async def cmd_end_support(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.effective_user:
+        return
+    
+    db_end_support_session(update.effective_user.id)
+    context.user_data["section"] = None
+    await update.message.reply_text(
+        "Support conversation ended. Use /start to access the main menu or click the support options to start a new conversation."
+    )
 
 async def main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
@@ -320,6 +373,9 @@ async def agency_router(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
     if data == "nav:back:main":
         context.user_data["section"] = None
+        # End support session when going back to main
+        if update.effective_user:
+            db_end_support_session(update.effective_user.id)
         await query.edit_message_text("Welcome! Choose an option:", reply_markup=main_menu_kb())
         return MAIN_MENU
 
@@ -344,11 +400,15 @@ async def agency_router(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
     if data == "agency:schedule":
         context.user_data["section"] = "Schedule a Call"
+        if update.effective_user:
+            db_start_support_session(update.effective_user.id, "Schedule a Call")
         await query.edit_message_text(SCHEDULE_TEXT, reply_markup=back_with_register_kb("agency"))
         return AGENCY_MENU
 
     if data == "agency:support":
         context.user_data["section"] = "Talk To Support"
+        if update.effective_user:
+            db_start_support_session(update.effective_user.id, "Talk To Support")
         await query.edit_message_text(SUPPORT_TEXT, reply_markup=back_with_register_kb("agency"))
         return AGENCY_MENU
 
@@ -372,19 +432,37 @@ async def capture_user_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.effective_chat or update.effective_chat.type != "private":
         return
 
-    section = context.user_data.get("section")
+    user = update.effective_user
+    if not user:
+        return
+
+    # Check both session state and database for persistent support sessions
+    session_section = context.user_data.get("section")
+    db_section = db_get_support_session(user.id)
+    
+    section = session_section or db_section
+    
     if section not in {"Schedule a Call", "Talk To Support"}:
         return
 
-    user = update.effective_user
     msg: Message = update.effective_message
-    logger.info("Capture text from user_id=%s section=%s text=%s", user.id if user else None, section, msg.text)
+    logger.info("Capture text from user_id=%s section=%s text=%s (session=%s, db=%s)", 
+                user.id, section, msg.text, session_section, db_section)
 
     header = build_ticket_header(section, user, msg)
     header_msg = await context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=header)
     logger.info("Posted header to admin chat_id=%s admin_msg_id=%s", ADMIN_CHAT_ID, header_msg.message_id)
 
     db_save_ticket(user.id, section, header_msg.message_id)
+    
+    # Update session activity timestamp if this came from DB session
+    if db_section:
+        conn = db_connect()
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE support_sessions SET last_activity = NOW() WHERE user_id = %s;",
+                (user.id,)
+            )
 
     await msg.reply_text(ACK_TEXT)
 
@@ -433,14 +511,14 @@ def db_fetch_daily_stats():
             "SELECT COUNT(DISTINCT user_id) FROM starts WHERE started_at >= %s AND started_at < %s;",
             (y_start, y_end),
         )
-        starters = cur.fetchone() or 0
+        starters = cur.fetchone()[0] or 0
 
         # Total support messages (tickets) yesterday
         cur.execute(
             "SELECT COUNT(*) FROM tickets WHERE created_at >= %s AND created_at < %s;",
             (y_start, y_end),
         )
-        total_tickets = cur.fetchone() or 0
+        total_tickets = cur.fetchone()[0] or 0
 
         # Split by section
         cur.execute(
@@ -505,6 +583,7 @@ def main() -> None:
     app.add_handler(conv)
     app.add_handler(CommandHandler("id", cmd_id))
     app.add_handler(CommandHandler("reply", cmd_reply))
+    app.add_handler(CommandHandler("endsupport", cmd_end_support))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), capture_user_text))
 
     app.add_error_handler(error_handler)
