@@ -374,9 +374,33 @@ async def main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         await query.edit_message_text(CLOAKING_TEXT, reply_markup=cloaking_menu_kb())
         return CLOAKING_MENU
 
-    if data == "nav:back:main":
-        await query.edit_message_text("Welcome! Choose an option:", reply_markup=main_menu_kb())
-        return MAIN_MENU
+    if data == "nav:back:agency":
+        try:
+            # Delete the current message (works for both text and media messages)
+            await query.message.delete()
+            
+            # Send new agency menu message
+            await context.bot.send_message(
+                chat_id=query.message.chat_id,
+                text="Agency Ad Account Service — choose an option:",
+                reply_markup=agency_menu_kb()
+            )
+        except Exception as e:
+            logger.error(f"Failed to handle back navigation: {e}")
+            # Fallback: try normal edit (works for text messages)
+            try:
+                await query.edit_message_text(
+                    "Agency Ad Account Service — choose an option:", 
+                    reply_markup=agency_menu_kb()
+                )
+            except:
+                # Last resort: send new message without deleting
+                await context.bot.send_message(
+                    chat_id=query.message.chat_id,
+                    text="Agency Ad Account Service — choose an option:",
+                    reply_markup=agency_menu_kb()
+                )
+        return AGENCY_MENU
 
     await query.edit_message_text("Welcome! Choose an option:", reply_markup=main_menu_kb())
     return MAIN_MENU
