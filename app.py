@@ -44,6 +44,45 @@ LOCAL_TZ = os.getenv("LOCAL_TZ", "Europe/Riga")
 # ---------- DB ----------
 _db_conn = None
 
+
+# Add this temporary function to your bot code
+async def upload_aurora_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """One-time function to upload Aurora image and get file_id"""
+    if update.effective_chat.id != ADMIN_CHAT_ID:  # Only admin can run this
+        return
+    
+    # Download your Google Drive image first and save it locally as 'aurora-service.jpg'
+    # Or use any direct URL to the image
+    try:
+        with open('aurora-service.jpg', 'rb') as photo:
+            message = await context.bot.send_photo(
+                chat_id=ADMIN_CHAT_ID,
+                photo=photo,
+                caption="Aurora Service Image Upload - Getting file_id..."
+            )
+            
+        # Extract the file_id (use highest resolution)
+        file_id = message.photo[-1].file_id
+        
+        # Send you the file_id to copy
+        await context.bot.send_message(
+            chat_id=ADMIN_CHAT_ID,
+            text=f"✅ Aurora Service Image uploaded!\n\nFile ID:\n`{file_id}`\n\nCopy this ID and use it in your code.",
+            parse_mode='Markdown'
+        )
+        
+        logger.info(f"Aurora service image file_id: {file_id}")
+        
+    except Exception as e:
+        await context.bot.send_message(
+            chat_id=ADMIN_CHAT_ID,
+            text=f"❌ Upload failed: {e}"
+        )
+
+# Add this handler temporarily
+app.add_handler(CommandHandler("upload_aurora", upload_aurora_image))
+
+
 def db_connect():
     global _db_conn
     if _db_conn is not None:
