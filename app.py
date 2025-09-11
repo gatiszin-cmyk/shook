@@ -45,40 +45,6 @@ LOCAL_TZ = os.getenv("LOCAL_TZ", "Europe/Riga")
 _db_conn = None
 
 
-# Add this function BEFORE the main() function
-async def upload_aurora_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """One-time function to upload Aurora image and get file_id"""
-    if update.effective_chat.id != ADMIN_CHAT_ID:  # Only admin can run this
-        return
-    
-    try:
-        # You need to download your Google Drive image first and save it locally as 'aurora-service.jpg'
-        with open('aurora-service.jpg', 'rb') as photo:
-            message = await context.bot.send_photo(
-                chat_id=ADMIN_CHAT_ID,
-                photo=photo,
-                caption="Aurora Service Image Upload - Getting file_id..."
-            )
-            
-        # Extract the file_id (use highest resolution)
-        file_id = message.photo[-1].file_id
-        
-        # Send you the file_id to copy
-        await context.bot.send_message(
-            chat_id=ADMIN_CHAT_ID,
-            text=f"✅ Aurora Service Image uploaded!\n\nFile ID:\n`{file_id}`\n\nCopy this ID and use it in your code.",
-            parse_mode='Markdown'
-        )
-        
-        logger.info(f"Aurora service image file_id: {file_id}")
-        
-    except Exception as e:
-        await context.bot.send_message(
-            chat_id=ADMIN_CHAT_ID,
-            text=f"❌ Upload failed: {e}"
-        )
-
-
 def db_connect():
     global _db_conn
     if _db_conn is not None:
@@ -634,6 +600,7 @@ def schedule_daily_job(app: Application):
     logger.info("Scheduled daily stats job at %s (UTC).", run_at)
 
 # ---------- Main ----------
+# ---------- Main ----------
 def main() -> None:
     db_init_schema()
 
@@ -651,16 +618,18 @@ def main() -> None:
         allow_reentry=True,
     )
 
-    # Register handlers in correct order
-    app.add_handler(conv)  # ✅ ConversationHandler FIRST
+    app.add_handler(conv)
     app.add_handler(CommandHandler("id", cmd_id))
     app.add_handler(CommandHandler("reply", cmd_reply))
     app.add_handler(CommandHandler("endsupport", cmd_end_support))
-    app.add_handler(CommandHandler("upload_aurora", upload_aurora_image))
-    
-    # ✅ MessageHandler LAST - only catches messages not handled by others
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), capture_user_text))
-    
+
     app.add_error_handler(error_handler)
+
+    # Schedule the daily recap
     schedule_daily_job(app)
+
     app.run_polling()
+
+if __name__ == "__main__":
+    main()
