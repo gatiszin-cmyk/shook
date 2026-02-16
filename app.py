@@ -174,7 +174,7 @@ def main_menu_kb() -> InlineKeyboardMarkup:
 def agency_menu_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📝 About Ad Accounts", callback_data="agency:about")],
-        [InlineKeyboardButton("🛡️ About Aurora Service", callback_data="agency:aurora")],        
+        [InlineKeyboardButton("🛡️ About Aurora Service + Trustpilot", callback_data="agency:aurora")],        
         [InlineKeyboardButton("📥 How To Receive Ad Accounts", callback_data="agency:howto")],
         [InlineKeyboardButton("❓ FAQ", callback_data="agency:faq")],
         # Combined Support and Schedule Option
@@ -185,12 +185,12 @@ def agency_menu_kb() -> InlineKeyboardMarkup:
 
 def cloaking_menu_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔗 Get Cloaking Mastery Now!", url=CLOAKING_URL)],
+        [InlineKeyboardButton("👉🔗 Get Cloaking Mastery Now!", url=CLOAKING_URL)],
         [InlineKeyboardButton("⬅️ Back", callback_data="nav:back:main")],
     ])
 
 def back_with_register_kb(back_target: str = "agency") -> InlineKeyboardMarkup:
-    rows = [[InlineKeyboardButton("🔗 Register & Start Free Trial Now!", url=REGISTER_URL)]]
+    rows = [[InlineKeyboardButton("👉🔗 Sign Up & Start FREE TRIAL Now", url=REGISTER_URL)]]
     if back_target == "agency":
         rows.append([InlineKeyboardButton("⬅️ Back", callback_data="nav:back:agency")])
     else:
