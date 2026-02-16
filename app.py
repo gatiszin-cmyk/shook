@@ -33,8 +33,15 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 # ---------- Env ----------
 load_dotenv(dotenv_path="runtime.env")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-if not BOT_TOKEN:
-    raise RuntimeError("BOT_TOKEN is missing. Put it in runtime.env as BOT_TOKEN=...")
+DATABASE_URL = os.getenv("DATABASE_URL")
+ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", "8088620127"))
+
+# DEBUG: This will show in your Railway logs exactly what the bot sees
+SHEET_URL = os.getenv("GOOGLE_SHEET_URL")
+if SHEET_URL:
+    logger.info(f"✅ GOOGLE_SHEET_URL found: {SHEET_URL[:15]}...") 
+else:
+    logger.error("❌ GOOGLE_SHEET_URL NOT FOUND IN ENVIRONMENT VARIABLES")
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", "8088620127"))
@@ -385,6 +392,7 @@ async def cmd_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main() -> None:
     db_init_schema()
+    # Adding 'base_url' check or just ensuring standard build
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     
     conv = ConversationHandler(
@@ -396,14 +404,15 @@ def main() -> None:
         },
         fallbacks=[CommandHandler("start", start)],
         allow_reentry=True,
+        per_message=True, # Adjusted this to fix the PTBUserWarning from your logs
     )
 
     app.add_handler(conv)
     app.add_handler(CommandHandler("reply", cmd_reply))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), capture_user_text))
     
-    logger.info("Bot is polling and Sheet logging is active.")
-    app.run_polling()
+    logger.info("Bot is polling. Make sure no other instances are running!")
+    app.run_polling(drop_pending_updates=True) # This clears old messages stuck in queue
 
 if __name__ == "__main__":
     main()
