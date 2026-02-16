@@ -123,7 +123,7 @@ HOWTO_TEXT = (
     "2️⃣ Pick a plan (trial activated automatically).\n"
     "3️⃣ Top up balance in \"Wallet\".\n"
     "4️⃣ Request accounts in \"Ad Accounts\".\n"
-    "5️⃣ Done! Wait for delivery, which can take up to 3 business days. You can contact the tech support directly now from the dashboard links".\n"
+    "5️⃣ Done! Wait for delivery (up to 3 business days). You can contact tech support directly from the dashboard links.\n"
 )
 
 FAQ_TEXT = (
