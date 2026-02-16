@@ -48,7 +48,6 @@ def log_to_google_sheets(user):
             "full_name": user.full_name
         }
         requests.post(SHEET_URL, json=payload, timeout=10)
-        logger.info(f"User {user.id} logged to TG_LEADS.")
     except Exception as e:
         logger.error(f"Sheet logging failed: {e}")
 
@@ -82,12 +81,11 @@ def main_menu_kb():
 
 def agency_menu_kb():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📝 Ad Accounts", callback_data="agency:about"),
-         InlineKeyboardButton("🛡️ Service & Trustpilot", callback_data="agency:aurora")],
+        [InlineKeyboardButton("📝 About Ad Accounts", callback_data="agency:about"),
+         InlineKeyboardButton("🛡️ Service & Truspilot", callback_data="agency:aurora")],
         [InlineKeyboardButton("📥 How To Receive", callback_data="agency:howto"),
          InlineKeyboardButton("❓ FAQ", callback_data="agency:faq")],
-        # HIGHLIGHTED CTA
-        [InlineKeyboardButton("🔥 SIGN UP & START FREE TRIAL", url=REGISTER_URL)],
+        [InlineKeyboardButton("🔥 SIGN UP & START FREE TRIAL NOW 🔥", url=REGISTER_URL)],
         [InlineKeyboardButton("💬 Talk To Support", url=SUPPORT_TELEGRAM_URL)],
         [InlineKeyboardButton("⬅️ Back", callback_data="nav:back:main")],
     ])
@@ -106,15 +104,13 @@ CLOAKING_TEXT = (
     "✅ Step-by-step cloaking strategies\n"
     "🛠️ Secret tools & proven methods\n"
     "🌍 Trusted by media buyers worldwide\n"
-    "💡 Perfect for affiliates, media buyers & marketers who want to scale FAST ⚡\n"
 )
 
 ABOUT_TEXT = (
     "We provide agency ad accounts for Meta, Google, Snapchat, TikTok, Bing, Taboola and Outbrain.\n\n"
     "🛡 Manual credit line agency ad accounts: Higher quality, fewer restrictions.\n"
     "💰 Low top-up fees: 0-3% perfect for scaling.\n"
-    "💳 Crypto/Bank/Card options.\n"
-    "🎁 Refundable fees & cashback for high spenders."
+    "💳 Crypto/Bank/Card options."
 )
 
 HOWTO_TEXT = (
@@ -127,10 +123,10 @@ HOWTO_TEXT = (
 )
 
 FAQ_TEXT = (
-    "❓ Own credit card? No, use our credit lines.\n"
-    "❓ Service Fee? Meta is $300/mo, as any other platform. Discounts if taking for longer periods of time.\n"
-    "❓ Min Initial Top Up? Meta $250, Google $1000. After initial ad account request no minimum top up\n"
-    "❓ Banned? We can appeal the ad account and refund all unspent balance."
+    "❓ Own card? No, use our credit lines.\n"
+    "❓ Service Fee? Meta is $300/mo.\n"
+    "❓ Min Top Up? Meta $250, Google $1000.\n"
+    "❓ Banned? We appeal or refund balance."
 )
 
 AURORA_SERVICE_TEXT = (
@@ -164,14 +160,18 @@ async def agency_router(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     query = update.callback_query
     await query.answer()
     
+    # Back to main
     if query.data == "nav:back:main":
-        await query.edit_message_text("Welcome! Choose an option:", reply_markup=main_menu_kb())
+        if query.message.caption: # If it's a photo message, delete it
+            await query.message.delete()
+            await context.bot.send_message(chat_id=query.message.chat_id, text="Welcome! Choose an option:", reply_markup=main_menu_kb())
+        else:
+            await query.edit_message_text("Welcome! Choose an option:", reply_markup=main_menu_kb())
         return MAIN_MENU
 
-    # SPECIAL CASE: AURORA SERVICE (Sends Photo)
+    # Send Photo for Aurora
     if query.data == "agency:aurora":
         try:
-            # We must delete the menu to "switch" to a photo message
             await query.message.delete()
             with open('aurora-service.jpg', 'rb') as photo:
                 await context.bot.send_photo(
@@ -181,23 +181,18 @@ async def agency_router(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
                     reply_markup=agency_menu_kb()
                 )
         except Exception as e:
-            logger.error(f"Image load error: {e}")
-            # Fallback to text if image fails
-            await context.bot.send_message(
-                chat_id=query.message.chat_id,
-                text=AURORA_SERVICE_TEXT,
-                reply_markup=agency_menu_kb()
-            )
+            logger.error(f"Image error: {e}")
+            await context.bot.send_message(chat_id=query.message.chat_id, text=AURORA_SERVICE_TEXT, reply_markup=agency_menu_kb())
         return AGENCY_MENU
 
-    mapping = {
-        "agency:about": ABOUT_TEXT,
-        "agency:howto": HOWTO_TEXT,
-        "agency:faq": FAQ_TEXT
-    }
-    
+    # Handle Text Updates
+    mapping = {"agency:about": ABOUT_TEXT, "agency:howto": HOWTO_TEXT, "agency:faq": FAQ_TEXT}
     if query.data in mapping:
-        await query.edit_message_text(mapping[query.data], reply_markup=agency_menu_kb())
+        if query.message.caption: # If currently on a photo message, delete and send new text menu
+            await query.message.delete()
+            await context.bot.send_message(chat_id=query.message.chat_id, text=mapping[query.data], reply_markup=agency_menu_kb())
+        else:
+            await query.edit_message_text(mapping[query.data], reply_markup=agency_menu_kb())
     
     return AGENCY_MENU
 
@@ -221,13 +216,12 @@ def main():
             CLOAKING_MENU: [CallbackQueryHandler(cloaking_router)],
         },
         fallbacks=[CommandHandler("start", start)],
-        per_message=False,
         per_user=True,
-        per_chat=True
+        per_chat=True,
+        per_message=False # CRITICAL: Keep False so buttons work across different messages
     )
 
     app.add_handler(conv)
-    logger.info("Bot is polling. Picture logic restored.")
     app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
