@@ -37,11 +37,6 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", "8088620127"))
 SHEET_URL = os.getenv("GOOGLE_SHEET_URL")
 
-if SHEET_URL:
-    logger.info(f"✅ GOOGLE_SHEET_URL found: {SHEET_URL[:15]}...")
-else:
-    logger.error("❌ GOOGLE_SHEET_URL NOT FOUND IN VARIABLES")
-
 # ---------- Google Sheets Logging ----------
 def log_to_google_sheets(user):
     if not SHEET_URL:
@@ -87,12 +82,12 @@ def main_menu_kb():
 
 def agency_menu_kb():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📝 About Ad Accounts", callback_data="agency:about"),
-         InlineKeyboardButton("🛡️ Aurora Service", callback_data="agency:aurora")],
+        [InlineKeyboardButton("📝 Ad Accounts", callback_data="agency:about"),
+         InlineKeyboardButton("🛡️ Service & Trustpilot", callback_data="agency:aurora")],
         [InlineKeyboardButton("📥 How To Receive", callback_data="agency:howto"),
          InlineKeyboardButton("❓ FAQ", callback_data="agency:faq")],
         # HIGHLIGHTED CTA
-        [InlineKeyboardButton("🔥 SIGN UP & START FREE TRIAL NOW 🔥", url=REGISTER_URL)],
+        [InlineKeyboardButton("🔥 SIGN UP & START FREE TRIAL", url=REGISTER_URL)],
         [InlineKeyboardButton("💬 Talk To Support", url=SUPPORT_TELEGRAM_URL)],
         [InlineKeyboardButton("⬅️ Back", callback_data="nav:back:main")],
     ])
@@ -128,20 +123,21 @@ HOWTO_TEXT = (
     "2️⃣ Pick a plan (trial activated automatically).\n"
     "3️⃣ Top up balance in \"Wallet\".\n"
     "4️⃣ Request accounts in \"Ad Accounts\".\n"
+    "5️⃣ Done! Wait for delivery, which can take up to 3 business days. You can contact the tech support directly now from the dashboard links".\n"
 )
 
 FAQ_TEXT = (
-    "❓ Own card? No, use our credit lines.\n"
-    "❓ Service Fee? Meta is $300/mo.\n"
-    "❓ Min Top Up? Meta $250, Google $1000.\n"
-    "❓ Banned? We appeal or refund balance."
+    "❓ Own credit card? No, use our credit lines.\n"
+    "❓ Service Fee? Meta is $300/mo, as any other platform. Discounts if taking for longer periods of time.\n"
+    "❓ Min Initial Top Up? Meta $250, Google $1000. After initial ad account request no minimum top up\n"
+    "❓ Banned? We can appeal the ad account and refund all unspent balance."
 )
 
 AURORA_SERVICE_TEXT = (
     "Agency Aurora (since 2021): 350M+ yearly spend.\n\n"
     "🛡️ Whitelisted enterprise accounts.\n"
     "📱 Proprietary self-serve platform.\n"
-    "🛠️ Dedicated management.\n"
+    "🛠️ Dedicated management.\n\n"
     "Reviews: https://www.trustpilot.com/review/agency-aurora.com"
 )
 
@@ -171,12 +167,33 @@ async def agency_router(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     if query.data == "nav:back:main":
         await query.edit_message_text("Welcome! Choose an option:", reply_markup=main_menu_kb())
         return MAIN_MENU
-    
+
+    # SPECIAL CASE: AURORA SERVICE (Sends Photo)
+    if query.data == "agency:aurora":
+        try:
+            # We must delete the menu to "switch" to a photo message
+            await query.message.delete()
+            with open('aurora-service.jpg', 'rb') as photo:
+                await context.bot.send_photo(
+                    chat_id=query.message.chat_id,
+                    photo=photo,
+                    caption=AURORA_SERVICE_TEXT,
+                    reply_markup=agency_menu_kb()
+                )
+        except Exception as e:
+            logger.error(f"Image load error: {e}")
+            # Fallback to text if image fails
+            await context.bot.send_message(
+                chat_id=query.message.chat_id,
+                text=AURORA_SERVICE_TEXT,
+                reply_markup=agency_menu_kb()
+            )
+        return AGENCY_MENU
+
     mapping = {
         "agency:about": ABOUT_TEXT,
         "agency:howto": HOWTO_TEXT,
-        "agency:faq": FAQ_TEXT,
-        "agency:aurora": AURORA_SERVICE_TEXT
+        "agency:faq": FAQ_TEXT
     }
     
     if query.data in mapping:
@@ -210,7 +227,7 @@ def main():
     )
 
     app.add_handler(conv)
-    logger.info("Bot is polling. All menus restored.")
+    logger.info("Bot is polling. Picture logic restored.")
     app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
