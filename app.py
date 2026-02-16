@@ -123,10 +123,11 @@ HOWTO_TEXT = (
 )
 
 FAQ_TEXT = (
-    "❓ Own card? No, use our credit lines.\n"
-    "❓ Service Fee? Meta is $300/mo.\n"
-    "❓ Min Top Up? Meta $250, Google $1000.\n"
-    "❓ Banned? We appeal or refund balance."
+    "❓ Own card? No, agency ad accounts use credit lines. You recharge balance on dashboard then request ad account top up from the dashboard\n"
+    "❓ Service Fee? Single platform access is $300/mo with discounts if taken for a longer period of time.\n"
+    "❓ Min Top Up? Initial minimum to request ad account Meta $250, Google $1000. Afterwards, no minimum. \n"
+    "❓ Top up options? Crypto, bank transfers, card or Payoneer \n"
+    "❓ Banned? We can try appealing the ad account for you or just refund unspent balance."
 )
 
 AURORA_SERVICE_TEXT = (
