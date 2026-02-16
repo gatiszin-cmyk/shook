@@ -179,7 +179,7 @@ def agency_menu_kb() -> InlineKeyboardMarkup:
         [InlineKeyboardButton("❓ FAQ", callback_data="agency:faq")],
         # Combined Support and Schedule Option
         [InlineKeyboardButton("🤝 Talk To Support", url=SUPPORT_TELEGRAM_URL)],
-        [InlineKeyboardButton("🔗 Register & Start Free Trial Now!", url=REGISTER_URL)],
+        [InlineKeyboardButton("👉🔗 Sign Up & Start FREE TRIAL Now", url=REGISTER_URL)],
         [InlineKeyboardButton("⬅️ Back", callback_data="nav:back:main")],
     ])
 
