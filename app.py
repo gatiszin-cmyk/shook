@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import requests
 from datetime import datetime, timedelta, time, timezone
 from urllib.parse import urlparse
 
@@ -37,9 +38,31 @@ if not BOT_TOKEN:
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", "8088620127"))
+# Google Sheet Web App URL from Railway Variables
+SHEET_URL = os.getenv("GOOGLE_SHEET_URL")
 
 # Optional: local timezone for scheduling the daily job
 LOCAL_TZ = os.getenv("LOCAL_TZ", "Europe/Riga")
+
+# ---------- Google Sheets Logging Function ----------
+def log_to_google_sheets(user):
+    if not SHEET_URL:
+        logger.warning("GOOGLE_SHEET_URL is not set. Skipping sheet log.")
+        return
+    try:
+        payload = {
+            "user_id": user.id,
+            "username": f"@{user.username}" if user.username else "N/A",
+            "full_name": user.full_name
+        }
+        # Sends data to the Apps Script Web App
+        response = requests.post(SHEET_URL, json=payload, timeout=10)
+        if response.status_code == 200:
+            logger.info(f"User {user.id} logged to TG_LEADS tab.")
+        else:
+            logger.error(f"Sheet logging failed with status {response.status_code}")
+    except Exception as e:
+        logger.error(f"Sheet logging error: {e}")
 
 # ---------- DB ----------
 _db_conn = None
@@ -251,10 +274,14 @@ ACK_TEXT = "Thanks! Our team will get back to you here shortly."
 
 # ---------- Handlers ----------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    user = update.effective_user
     try:
-        if update.effective_user:
-            db_save_start(update.effective_user.id)
-            db_end_support_session(update.effective_user.id)
+        if user:
+            # 1. Log to Internal DB
+            db_save_start(user.id)
+            db_end_support_session(user.id)
+            # 2. Log to External Google Sheet
+            log_to_google_sheets(user)
     except Exception as e:
         logger.error("Failed to log /start: %s", e)
 
@@ -303,6 +330,7 @@ async def agency_router(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         await query.edit_message_text(FAQ_TEXT, reply_markup=back_with_register_kb("agency"))
     elif data == "agency:aurora":
         try:
+            # Note: Ensure aurora-service.jpg exists in your project root
             with open('aurora-service.jpg', 'rb') as photo:
                 await context.bot.send_photo(
                     chat_id=query.message.chat_id,
@@ -312,6 +340,7 @@ async def agency_router(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
                 )
             await query.message.delete()
         except Exception as e:
+            logger.error(f"Image load error: {e}")
             await query.edit_message_text(AURORA_SERVICE_TEXT, reply_markup=back_with_register_kb("agency"))
     
     return AGENCY_MENU
@@ -354,11 +383,6 @@ async def cmd_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(chat_id=ticket["user_id"], text=args_text)
         await msg.reply_text(f"Sent to user {ticket['user_id']}.")
 
-# ---------- Stats & Jobs ----------
-async def send_daily_stats(context: ContextTypes.DEFAULT_TYPE):
-    # (Existing stats logic kept for admin reporting)
-    pass
-
 def main() -> None:
     db_init_schema()
     app = ApplicationBuilder().token(BOT_TOKEN).build()
@@ -378,6 +402,7 @@ def main() -> None:
     app.add_handler(CommandHandler("reply", cmd_reply))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), capture_user_text))
     
+    logger.info("Bot is polling and Sheet logging is active.")
     app.run_polling()
 
 if __name__ == "__main__":
