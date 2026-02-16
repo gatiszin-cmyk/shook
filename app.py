@@ -37,7 +37,6 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", "8088620127"))
 SHEET_URL = os.getenv("GOOGLE_SHEET_URL")
 
-# Log startup status for Sheet URL
 if SHEET_URL:
     logger.info(f"✅ GOOGLE_SHEET_URL found: {SHEET_URL[:15]}...")
 else:
@@ -58,7 +57,7 @@ def log_to_google_sheets(user):
     except Exception as e:
         logger.error(f"Sheet logging failed: {e}")
 
-# ---------- DB Helpers (Condensed) ----------
+# ---------- DB Helpers ----------
 def db_connect():
     p = urlparse(DATABASE_URL)
     conn = psycopg2.connect(dbname=p.path.lstrip("/"), user=p.username, password=p.password, host=p.hostname, port=p.port, sslmode="require")
@@ -72,7 +71,7 @@ def db_init_schema():
     logger.info("DB schema ensured.")
 
 # ---------- States ----------
-MAIN_MENU, AGENCY_MENU = range(2)
+MAIN_MENU, AGENCY_MENU, CLOAKING_MENU = range(3)
 
 # ---------- Links ----------
 CLOAKING_URL = "https://socialhook.media/sp/cloaking-course/?utm_source=telegram"
@@ -88,20 +87,63 @@ def main_menu_kb():
 
 def agency_menu_kb():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📝 About Ad Accounts", callback_data="agency:about")],
-        [InlineKeyboardButton("🛡️ About Aurora Service + Trustpilot", callback_data="agency:aurora")],        
-        [InlineKeyboardButton("📥 How To Receive Ad Accounts", callback_data="agency:howto")],
-        [InlineKeyboardButton("❓ FAQ", callback_data="agency:faq")],
+        [InlineKeyboardButton("📝 About Ad Accounts", callback_data="agency:about"),
+         InlineKeyboardButton("🛡️ Aurora Service", callback_data="agency:aurora")],
+        [InlineKeyboardButton("📥 How To Receive", callback_data="agency:howto"),
+         InlineKeyboardButton("❓ FAQ", callback_data="agency:faq")],
+        # HIGHLIGHTED CTA
+        [InlineKeyboardButton("🔥 SIGN UP & START FREE TRIAL NOW 🔥", url=REGISTER_URL)],
         [InlineKeyboardButton("💬 Talk To Support", url=SUPPORT_TELEGRAM_URL)],
-        [InlineKeyboardButton("👉🔗 Sign Up & Start FREE TRIAL Now", url=REGISTER_URL)],
+        [InlineKeyboardButton("⬅️ Back", callback_data="nav:back:main")],
+    ])
+
+def cloaking_menu_kb():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("👉🔗 Get Cloaking Mastery Now!", url=CLOAKING_URL)],
         [InlineKeyboardButton("⬅️ Back", callback_data="nav:back:main")],
     ])
 
 # ---------- Content ----------
-ABOUT_TEXT = "We provide agency ad accounts for Meta, Google, Snapchat, TikTok, Bing, Taboola and Outbrain..."
-HOWTO_TEXT = "1️⃣ Register... 2️⃣ Pick a plan... 3️⃣ Top up... 4️⃣ Request accounts!"
-FAQ_TEXT = "❓Can I add my own card? No. ❓Service Fee? Meta: $300/mo."
-AURORA_SERVICE_TEXT = "Agency Aurora (since 2021): Whitelisted enterprise accounts, proprietary platform."
+CLOAKING_TEXT = (
+    "🔥 Socialhook Cloaking Mastery Course is LIVE!\n"
+    "Learn how to run unrestricted ads on Meta & Google!\n"
+    "What you'll get:\n"
+    "✅ Step-by-step cloaking strategies\n"
+    "🛠️ Secret tools & proven methods\n"
+    "🌍 Trusted by media buyers worldwide\n"
+    "💡 Perfect for affiliates, media buyers & marketers who want to scale FAST ⚡\n"
+)
+
+ABOUT_TEXT = (
+    "We provide agency ad accounts for Meta, Google, Snapchat, TikTok, Bing, Taboola and Outbrain.\n\n"
+    "🛡 Manual credit line agency ad accounts: Higher quality, fewer restrictions.\n"
+    "💰 Low top-up fees: 0-3% perfect for scaling.\n"
+    "💳 Crypto/Bank/Card options.\n"
+    "🎁 Refundable fees & cashback for high spenders."
+)
+
+HOWTO_TEXT = (
+    "Step-by-step instructions:\n\n"
+    "1️⃣ Register via the link below.\n"
+    "2️⃣ Pick a plan (trial activated automatically).\n"
+    "3️⃣ Top up balance in \"Wallet\".\n"
+    "4️⃣ Request accounts in \"Ad Accounts\".\n"
+)
+
+FAQ_TEXT = (
+    "❓ Own card? No, use our credit lines.\n"
+    "❓ Service Fee? Meta is $300/mo.\n"
+    "❓ Min Top Up? Meta $250, Google $1000.\n"
+    "❓ Banned? We appeal or refund balance."
+)
+
+AURORA_SERVICE_TEXT = (
+    "Agency Aurora (since 2021): 350M+ yearly spend.\n\n"
+    "🛡️ Whitelisted enterprise accounts.\n"
+    "📱 Proprietary self-serve platform.\n"
+    "🛠️ Dedicated management.\n"
+    "Reviews: https://www.trustpilot.com/review/agency-aurora.com"
+)
 
 # ---------- Handlers ----------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -117,6 +159,9 @@ async def main_menu_router(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     if query.data == "main:agency":
         await query.edit_message_text("Agency Ad Account Service — choose an option:", reply_markup=agency_menu_kb())
         return AGENCY_MENU
+    if query.data == "main:cloaking":
+        await query.edit_message_text(CLOAKING_TEXT, reply_markup=cloaking_menu_kb())
+        return CLOAKING_MENU
     return MAIN_MENU
 
 async def agency_router(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -139,6 +184,14 @@ async def agency_router(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     
     return AGENCY_MENU
 
+async def cloaking_router(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    if query.data == "nav:back:main":
+        await query.edit_message_text("Welcome! Choose an option:", reply_markup=main_menu_kb())
+        return MAIN_MENU
+    return CLOAKING_MENU
+
 def main():
     db_init_schema()
     app = ApplicationBuilder().token(BOT_TOKEN).build()
@@ -148,16 +201,17 @@ def main():
         states={
             MAIN_MENU: [CallbackQueryHandler(main_menu_router)],
             AGENCY_MENU: [CallbackQueryHandler(agency_router)],
+            CLOAKING_MENU: [CallbackQueryHandler(cloaking_router)],
         },
         fallbacks=[CommandHandler("start", start)],
-        per_message=False, # Fixes the PTB warning
+        per_message=False,
         per_user=True,
         per_chat=True
     )
 
     app.add_handler(conv)
-    logger.info("Bot is polling. Sheet logging active.")
-    app.run_polling(drop_pending_updates=True) # Clears backlog on restart
+    logger.info("Bot is polling. All menus restored.")
+    app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
     main()
